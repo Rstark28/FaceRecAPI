@@ -20,6 +20,8 @@ load_dotenv()
 # Connect to MongoDB
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
+db = client['face_recognition']
+collection = db['images']
 
 # Set allowed file extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
