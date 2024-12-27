@@ -1,13 +1,14 @@
 from flask import Flask, request, jsonify
 from werkzeug.utils import secure_filename
+from pymongo import MongoClient
+from PIL import Image
 import cv2
 import numpy as np
 from skimage.feature import local_binary_pattern
+from sklearn.metrics.pairwise import chi2_kernel
 import logging
-from pymongo import MongoClient
 import os
 import io
-from PIL import Image
 
 app = Flask(__name__)
 
