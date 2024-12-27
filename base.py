@@ -74,6 +74,24 @@ def extract_lbp_features(partitions, radius=1, points=8):
         histograms.append(hist / hist.sum())
     return np.concatenate(histograms)
 
+# Purpose: Compare two sets of LBP features using the Chi-Squared kernel.
+# Input: features1 (numpy.ndarray) - LBP features of the first face.
+#        features2 (numpy.ndarray) - LBP features of the second face.
+#        weights (numpy.ndarray) - Weights for each feature dimension.
+# Output: score (float) - Similarity score between the two faces.
+def compare_faces(features1, features2, weights=None):
+    # Apply weights to the features if provided
+    if weights is not None:
+        features1 *= weights
+        features2 *= weights
+
+    # Calculate similarity score using Chi-squared kernel
+    similarity = -chi2_kernel(features1.reshape(1, -1), features2.reshape(1, -1))[0][0]
+
+    # Normalize and convert to percentage
+    similarity_percentage = max(0, 100 - abs(similarity * 100))
+    return similarity_percentage
+
 # Route to upload image and store LBP features
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -104,10 +122,28 @@ def upload_image():
         # Extract LBP features from partitions
         lbp_features = extract_lbp_features(partitions)
 
-        # Log the image upload
-        logging.info(f"Image uploaded for {name}.")
+        # Compare with existing images in the database
+        matches = []
+        for entry in collection.find():
+            for stored_features in entry["lbp_features"]:
+                similarity_score = compare_faces(
+                    np.array(stored_features),
+                    lbp_features
+                )
+                matches.append({
+                    "name": entry["name"],
+                    "similarity_score": similarity_score,
+                    "id": str(entry["_id"])  # Include MongoDB document ID for reference
+                })
 
-        # Store name, image path, and LBP features in MongoDB
+        # Sort matches by similarity score in descending order
+        matches = sorted(matches, key=lambda x: x["similarity_score"], reverse=True)[:3]
+
+        # Log the matches
+        for match in matches:
+            logging.info(f"Match found: {match['name']} with similarity score {match['similarity_score']}")
+
+        # Store the new image's LBP features in the database
         existing_entry = collection.find_one({"name": name})
         if existing_entry:
             # If the person already exists, append the LBP features
@@ -128,13 +164,11 @@ def upload_image():
             })
             logging.info(f"New entry created for {name}.")
 
-        return jsonify({"message": "Image uploaded and processed successfully"}), 200
+        return jsonify({
+            "message": "Image uploaded and processed successfully.",
+            "top_matches": matches
+        }), 200
 
     except Exception as e:
         logging.error(f"Error processing image for {name}: {e}")
         return jsonify({"error": f"Error processing image: {e}"}), 500
-
-
-if __name__ == "__main__":
-    setup_logging()
-    app.run(debug=True)
