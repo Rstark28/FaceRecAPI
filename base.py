@@ -6,6 +6,8 @@ from skimage.feature import local_binary_pattern
 import logging
 from pymongo import MongoClient
 import os
+import io
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -88,19 +90,10 @@ def upload_image():
     if not allowed_file(image_file.filename):
         return jsonify({"error": "Invalid file format. Only PNG, JPG, and JPEG are allowed."}), 400
 
-    # Ensure upload directory exists
-    os.makedirs('uploads', exist_ok=True)
-
-    # Save the image securely
-    filename = secure_filename(image_file.filename)
-    image_path = os.path.join("uploads", filename)
-    image_file.save(image_path)
-
     try:
-        # Load image
-        image = cv2.imread(image_path)
-        if image is None:
-            raise ValueError("Invalid image format or file is corrupted.")
+        # Read image from the request (no need to save it to the file system)
+        image = Image.open(io.BytesIO(image_file.read()))
+        image = np.array(image)
 
         # Detect and align the face
         face = detect_and_align_face(image)
@@ -117,23 +110,21 @@ def upload_image():
         # Store name, image path, and LBP features in MongoDB
         existing_entry = collection.find_one({"name": name})
         if existing_entry:
-            # If the person already exists, append the LBP features and image path
+            # If the person already exists, append the LBP features
             collection.update_one(
                 {"name": name},
                 {
                     "$push": {
-                        "lbp_features": lbp_features.tolist(),
-                        "image_paths": image_path
+                        "lbp_features": lbp_features.tolist()
                     }
                 }
             )
-            logging.info(f"LBP features and image path updated for {name}.")
+            logging.info(f"LBP features updated for {name}.")
         else:
             # If it's a new person, create a new entry
             collection.insert_one({
                 "name": name,
-                "image_paths": [image_path],  # Store image path as a list for consistency
-                "lbp_features": [lbp_features.tolist()]  # Store LBP features as a list
+                "lbp_features": [lbp_features.tolist()]
             })
             logging.info(f"New entry created for {name}.")
 
