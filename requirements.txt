@@ -7,4 +7,5 @@ pymongo==4.10.1
 gunicorn==21.2.0
 Pillow>=10.1
 scikit-learn==1.2.2
-faiss-cpu
+python-dotenv==1.0.0
+faiss-cpu==1.7.4
