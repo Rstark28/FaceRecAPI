@@ -56,7 +56,7 @@ def detect_and_align_face(image):
 
     # Detect faces in the image
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=8, minSize=(100, 100))
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=5, minSize=(30, 30))
     if len(faces) == 0:
         raise ValueError("No face detected. Ensure the image contains a clear, forward-facing face.")
 
