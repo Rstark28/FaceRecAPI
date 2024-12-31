@@ -166,13 +166,17 @@ def upload_image():
     try:
         # Read image from the request (no need to save it to the file system)
         image = Image.open(io.BytesIO(image_file.read()))
-        image = np.array(image)        
+        image = np.array(image)
 
-        # Inside the upload_image function
+        # Preprocess and detect face
         image = preprocess_image(image)
         face = detect_and_align_face(image)
 
         # Partition the face into a grid
+        h, w = face.shape
+        if h % 8 != 0 or w % 8 != 0:
+            raise ValueError("Face dimensions are not evenly divisible by the grid size.")
+
         partitions = partition_face(face)
 
         # Extract LBP features from partitions
@@ -225,6 +229,10 @@ def upload_image():
             "top_matches": matches
         }), 200
 
+    except ValueError as ve:
+        logging.error(f"Value error while processing image for {name}: {ve}")
+        return jsonify({"error": f"Value error: {ve}"}), 400
+
     except Exception as e:
-        logging.error(f"Error processing image for {name}: {e}")
+        logging.error(f"Error processing image for {name}: {e}", exc_info=True)
         return jsonify({"error": f"Error processing image: {e}"}), 500
