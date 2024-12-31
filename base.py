@@ -49,21 +49,42 @@ def preprocess_image(image, target_size=(256, 256)):
 # Output: face (numpy.ndarray) - Aligned face region.
 # Raises: IOError - If the face cascade classifier is not loaded, ValueError - If no face is detected.
 def detect_and_align_face(image):
-    # Load the face cascade classifier
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-    if face_cascade.empty():
-        raise IOError("Failed to load face cascade classifier.")
+    # Load the DNN model for face detection (deploy and weights from OpenCV or other sources)
+    model_path = "deploy.prototxt"  # Path to the deploy prototxt file
+    weights_path = "res10_300x300_ssd_iter_140000.caffemodel"  # Path to the weights file
+    net = cv2.dnn.readNetFromCaffe(model_path, weights_path)
 
-    # Detect faces in the image
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=5, minSize=(30, 30))
-    if len(faces) == 0:
+    if net.empty():
+        raise IOError("Failed to load DNN face detection model.")
+
+    # Prepare the image for the DNN model
+    h, w = image.shape[:2]
+    blob = cv2.dnn.blobFromImage(image, 1.0, (300, 300), [104.0, 177.0, 123.0], swapRB=False, crop=False)
+    net.setInput(blob)
+    detections = net.forward()
+
+    # Parse detections and find the largest face
+    max_confidence = 0
+    best_face = None
+    for i in range(detections.shape[2]):
+        confidence = detections[0, 0, i, 2]
+        if confidence > 0.6:  # Confidence threshold
+            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+            x1, y1, x2, y2 = box.astype("int")
+            face_area = (x2 - x1) * (y2 - y1)
+            if confidence > max_confidence:
+                max_confidence = confidence
+                best_face = (x1, y1, x2, y2)
+
+    if best_face is None:
         raise ValueError("No face detected. Ensure the image contains a clear, forward-facing face.")
 
-    # Select the largest face for alignment
-    faces = sorted(faces, key=lambda rect: rect[2] * rect[3], reverse=True)
-    x, y, w, h = faces[0]
-    return gray[y:y+h, x:x+w]
+    # Extract and align the face
+    x1, y1, x2, y2 = best_face
+    face = image[y1:y2, x1:x2]
+
+    return face
+
 
 # Purpose: Partition a face image into a grid of smaller regions.
 # Input: image (numpy.ndarray) - Aligned face image.
